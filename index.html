@@ -1,301 +1,153 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>简易 MOBA 帧同步原型</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全军之战核心机制演示</title>
+    
     <style>
-        body { margin: 0; background-color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
-        canvas { border: 2px solid #555; background-color: #1a1a1a; }
-        .info { color: white; margin-top: 10px; font-family: monospace; }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+
+        #game-info {
+            background-color: #fff;
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        #unit-display {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-top: 10px;
+        }
+
+        .unit-number {
+            color: #e74c3c; /* 红色突出显示单位数量 */
+        }
+        
+        .action-button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .gate {
+            background-color: #2ecc71; /* 绿色代表倍增门 */
+            color: white;
+        }
+
+        .battle {
+            background-color: #e74c3c; /* 红色代表战斗/障碍 */
+            color: white;
+        }
+        
+        .action-button:hover {
+            opacity: 0.9;
+        }
+
+        #log {
+            width: 80%;
+            max-width: 600px;
+            height: 150px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: scroll;
+            background-color: #ecf0f1;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
 
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div class="info">
-        <p>点击 Canvas 区域设置玩家移动目标。</p>
-        <p>帧数 (Frame): <span id="frameCounter">0</span> | 状态: <span id="playerStatus">Idle</span></p>
+    <div id="game-info">
+        <h2>《全军之战》核心逻辑演示</h2>
+        <p>当前玩家单位数量：</p>
+        <div id="unit-display">
+            <span class="unit-number">60</span>
+        </div>
+        <p>（点击按钮模拟游戏进程）</p>
     </div>
 
+    <div>
+        <button class="action-button gate" onclick="passGate(2)">
+            通过门 (x2)
+        </button>
+        <button class="action-button battle" onclick="handleCollision(110)">
+            遭遇障碍 (110)
+        </button>
+        <button class="action-button gate" onclick="passGate(20)">
+            通过门 (x20)
+        </button>
+        <button class="action-button battle" onclick="handleCollision(130)">
+            遭遇终点 (130)
+        </button>
+    </div>
+
+    <h3>操作日志：</h3>
+    <pre id="log">初始单位: 60</pre>
+
     <script>
-        // --- 1. 定点数 (Fixed Point) 模拟库 ---
-        // 简化实现：我们使用 10000 作为精度因子 (16.16 格式)
-        const FIXED_SHIFT = 10000;
+        // 初始单位数量
+        let playerUnits = 60; 
+        const unitDisplay = document.querySelector('#unit-display .unit-number');
+        const logArea = document.getElementById('log');
 
-        class Fix64 {
-            constructor(value) {
-                // 内部存储为整数
-                if (typeof value === 'number') {
-                    this.v = Math.floor(value * FIXED_SHIFT);
-                } else {
-                    this.v = value; // 已经是整数值
-                }
-            }
-
-            toFloat() {
-                return this.v / FIXED_SHIFT;
-            }
-
-            static fromFloat(f) {
-                return new Fix64(f);
-            }
-
-            add(other) {
-                return new Fix64(this.v + other.v);
-            }
-
-            sub(other) {
-                return new Fix64(this.v - other.v);
-            }
-
-            // 乘法需要除以精度因子
-            mul(other) {
-                // 确保结果仍然是整数存储
-                return new Fix64(Math.round(this.v * other.v / FIXED_SHIFT));
-            }
-
-            // 除法需要乘以精度因子
-            div(other) {
-                return new Fix64(Math.round(this.v * FIXED_SHIFT / other.v));
-            }
-            
-            // 静态方法：比较
-            static lessThan(a, b) {
-                return a.v < b.v;
-            }
-            
-            // 静态方法：距离平方 (为了避免复杂的开方操作)
-            static distSq(vecA, vecB) {
-                const dx = vecA.x.sub(vecB.x);
-                const dy = vecA.y.sub(vecB.y);
-                return dx.mul(dx).add(dy.mul(dy));
-            }
+        // 更新单位数量的显示和日志
+        function updateDisplay(message) {
+            unitDisplay.textContent = playerUnits;
+            logArea.innerHTML += `\n> ${message}`;
+            logArea.scrollTop = logArea.scrollHeight; // 滚动到底部
         }
 
-        class FixVector2 {
-            constructor(x, y) {
-                this.x = x instanceof Fix64 ? x : new Fix64(x);
-                this.y = y instanceof Fix64 ? y : new Fix64(y);
+        // 模拟通过乘法门
+        function passGate(multiplier) {
+            if (playerUnits <= 0) {
+                updateDisplay("🚨 游戏已结束，无法进行操作！");
+                return;
             }
-
-            add(other) {
-                return new FixVector2(this.x.add(other.x), this.y.add(other.y));
-            }
-
-            sub(other) {
-                return new FixVector2(this.x.sub(other.x), this.y.sub(other.y));
-            }
-
-            mul(scalar) {
-                return new FixVector2(this.x.mul(scalar), this.y.mul(scalar));
-            }
-            
-            // 简化：向量标准化 (Normalization)
-            normalize() {
-                // 实际帧同步中，需要定点数实现 sqrt 和 div
-                // 这里为了演示，我们使用浮点数来近似计算模，但结果再转回 Fix64
-                const magF = Math.sqrt(this.x.toFloat()**2 + this.y.toFloat()**2);
-                if (magF === 0) return new FixVector2(0, 0);
-                
-                const factor = new Fix64(1).div(Fix64.fromFloat(magF));
-                return this.mul(factor);
-            }
+            playerUnits = playerUnits * multiplier;
+            updateDisplay(`🟢 通过 x${multiplier} 门，新单位: ${playerUnits}`);
         }
 
+        // 模拟与敌方/障碍战斗
+        function handleCollision(enemyUnits) {
+            if (playerUnits <= 0) {
+                updateDisplay("🚨 游戏已结束，无法进行操作！");
+                return;
+            }
 
-        // --- 2. 核心数据结构：操作指令与玩家 ---
-
-        const CommandType = {
-            MOVE_TO: 1
-        };
-
-        class InputCommand {
-            constructor(type, targetPos) {
-                this.type = type;
-                this.targetPos = targetPos; // FixVector2
+            const battleMessage = `💥 遭遇障碍 (${enemyUnits}) - 战前单位: ${playerUnits}`;
+            
+            playerUnits -= enemyUnits;
+            
+            if (playerUnits > 0) {
+                updateDisplay(`${battleMessage}\n   🎉 胜利！剩余单位: ${playerUnits}`);
+            } else if (playerUnits === 0) {
+                 updateDisplay(`${battleMessage}\n   ⚠️ 平局！所有单位消耗完毕。`);
+            } else {
+                playerUnits = 0; // 玩家单位被消耗殆尽
+                updateDisplay(`${battleMessage}\n   💀 失败！单位全部阵亡。游戏结束。`);
             }
         }
-
-        class PlayerController {
-            constructor(id, startX, startY) {
-                this.id = id;
-                this.position = new FixVector2(startX, startY);
-                this.targetPosition = this.position;
-                this.velocity = new FixVector2(0, 0);
-                this.moveSpeed = new Fix64(300); // 像素/秒
-                this.state = 'Idle';
-                this.commandQueue = []; // 假设网络操作指令入队
-                this.color = id === 1 ? 'blue' : 'red';
-                this.size = 20;
-                
-                // 停止距离：使用 Fix64(5) 表示 5 像素的距离平方作为停止阈值
-                this.stopDistanceSq = new Fix64(5).mul(new Fix64(5)); 
-            }
-
-            // 外部（网络）将指令推入队列
-            enqueueCommand(command) {
-                this.commandQueue.push(command);
-            }
-            
-            // 核心逻辑：每一帧执行
-            frameUpdate(deltaTimeFix) {
-                // 1. 处理新的输入指令 (只取最新的MOVE_TO指令)
-                while (this.commandQueue.length > 0) {
-                    const command = this.commandQueue.shift();
-                    if (command.type === CommandType.MOVE_TO) {
-                        this.targetPosition = command.targetPos;
-                        this.state = 'Moving';
-                    }
-                    // TODO: 其他技能指令
-                }
-
-                // 2. 状态机驱动
-                if (this.state === 'Moving') {
-                    this.updateMovement(deltaTimeFix);
-                }
-                
-                // 更新 UI 信息
-                if (this.id === 1) { // 假设只更新玩家1的信息
-                     document.getElementById('playerStatus').innerText = this.state;
-                }
-            }
-            
-            updateMovement(deltaTimeFix) {
-                const distanceSq = Fix64.distSq(this.position, this.targetPosition);
-
-                // 判断是否到达目标点
-                if (Fix64.lessThan(distanceSq, this.stopDistanceSq)) {
-                    this.state = 'Idle';
-                    this.position = this.targetPosition; // 精确停在目标点
-                    this.velocity = new FixVector2(0, 0);
-                    return;
-                }
-
-                // 计算移动方向 (目标 - 当前位置)
-                const directionVector = this.targetPosition.sub(this.position);
-                
-                // 标准化并乘以速度 (V = 向量 * 速度)
-                this.velocity = directionVector.normalize().mul(this.moveSpeed);
-                
-                // 位移计算 (DeltaPosition = Velocity * DeltaTime)
-                const deltaPosition = this.velocity.mul(deltaTimeFix);
-                
-                // 更新位置 (NewPosition = OldPosition + DeltaPosition)
-                this.position = this.position.add(deltaPosition);
-            }
-
-            // 渲染：只用于表现层，不参与逻辑计算
-            draw(ctx) {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.position.toFloat().x, this.position.toFloat().y, this.size / 2, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // 绘制目标点
-                ctx.strokeStyle = this.color;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(this.targetPosition.toFloat().x - 5, this.targetPosition.toFloat().y - 5, 10, 10);
-            }
-        }
-
-
-        // --- 3. 游戏主循环和管理器 ---
-
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
         
-        // 游戏核心参数
-        const TICK_RATE = 30; // 游戏逻辑帧率：每秒30帧
-        const FRAME_INTERVAL_MS = 1000 / TICK_RATE;
-        const DELTA_TIME_FIX = new Fix64(1).div(new Fix64(TICK_RATE)); // 帧逻辑的时间步长
-
-        let currentFrame = 0;
-        let lastTimestamp = 0;
-        let accumulator = 0; // 累加器，用于固定时间步长
-
-        // 游戏对象列表
-        let players = [];
-
-        function setupGame() {
-            // 假设我们有两个玩家
-            players.push(new PlayerController(1, 100, 300));
-            players.push(new PlayerController(2, 700, 300));
-
-            // 监听点击事件，模拟玩家输入
-            canvas.addEventListener('click', handleInput);
-
-            // 启动游戏循环
-            requestAnimationFrame(gameLoop);
-        }
-
-        function handleInput(event) {
-            const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
-            
-            // 将屏幕坐标转换为 FixVector2
-            const targetPosFix = new FixVector2(x, y);
-            
-            // 模拟生成操作指令 (假设玩家1是本地控制的)
-            const moveCommand = new InputCommand(CommandType.MOVE_TO, targetPosFix);
-            
-            // 在真正的帧同步中，这个指令会被发送给服务器，服务器再广播给所有客户端。
-            // 在此原型中，我们直接将指令入队。
-            players[0].enqueueCommand(moveCommand); 
-        }
-
-        // 核心：基于时间的固定步长循环
-        function gameLoop(timestamp) {
-            requestAnimationFrame(gameLoop);
-
-            const deltaTime = timestamp - lastTimestamp;
-            lastTimestamp = timestamp;
-            accumulator += deltaTime;
-
-            // --- 逻辑更新 (Logic Update) ---
-            // 只要累加的时间超过了一个帧的时间，就执行逻辑帧
-            while (accumulator >= FRAME_INTERVAL_MS) {
-                executeFrame();
-                accumulator -= FRAME_INTERVAL_MS;
-            }
-
-            // --- 渲染 (Render) ---
-            // 渲染应该独立于逻辑帧率，使用插值平滑移动 (但我们这里简化，直接渲染当前逻辑位置)
-            render(accumulator / FRAME_INTERVAL_MS); 
-        }
-
-        // 每一逻辑帧的执行函数
-        function executeFrame() {
-            currentFrame++;
-            document.getElementById('frameCounter').innerText = currentFrame;
-
-            // 依次更新所有游戏对象的逻辑状态
-            players.forEach(player => {
-                player.frameUpdate(DELTA_TIME_FIX);
-            });
-
-            // 假设在这个函数末尾，需要计算游戏世界的校验和 (Checksum)
-            // 验证是否所有客户端的逻辑状态都一致
-        }
-
-        function render(interpolationRatio) {
-            // 清屏
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 绘制地图/战场（简化）
-            ctx.fillStyle = '#222';
-            ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
-
-            // 绘制所有对象
-            players.forEach(player => {
-                // 真正的游戏渲染会使用插值 (Interpolation) 来平滑 movement，减少卡顿
-                // player.draw(ctx, interpolationRatio); 
-                player.draw(ctx); 
-            });
-        }
-
-        setupGame();
-
+        // 初始调用
+        updateDisplay("游戏准备就绪。");
     </script>
 
 </body>
