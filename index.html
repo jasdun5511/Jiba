@@ -2,332 +2,355 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GBA Style Pokémon Battle Remake</title>
+    <title>Pokémon: Web GBA Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        /* --- 全局设置 --- */
+        /* --- 核心基础设置 --- */
         :root {
-            --gba-width: 480px;  /* 模拟GBA 2倍放大 */
-            --gba-height: 320px;
-            --bg-color: #28323d;
-            --ui-border: #384048;
-            --ui-bg: #f8f8f8;
-            --hp-green: #50c878;
-            --hp-yellow: #f8b800;
-            --hp-red: #e03030;
+            --screen-w: 480px;
+            --screen-h: 320px;
+            --tile-size: 32px; /* 角色移动的格子大小 */
         }
         body {
-            background-color: #111;
+            background-color: #202020;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            font-family: 'Press Start 2P', cursive; /* 像素字体 */
-            image-rendering: pixelated; /* 强制像素化显示 */
+            font-family: 'Press Start 2P', cursive;
+            image-rendering: pixelated;
+            overflow: hidden;
             color: #333;
         }
 
-        /* --- 游戏主屏幕容器 --- */
-        #gba-screen {
-            width: var(--gba-width);
-            height: var(--gba-height);
-            background: url('https://i.imgur.com/9Qz6v3o.png') no-repeat center; /* 简易战斗背景 */
-            background-size: cover;
+        /* 游戏机屏幕外壳 */
+        #game-boy {
+            width: var(--screen-w);
+            height: var(--screen-h);
+            border: 15px solid #d0d0d0;
+            border-radius: 10px 10px 40px 10px;
             position: relative;
-            overflow: hidden;
-            border: 4px solid #000;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: #000;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
-        /* --- 精灵区域 --- */
-        .sprite {
-            position: absolute;
-            width: 140px; /* 放大显示 */
-            height: 140px;
-            background-repeat: no-repeat;
-            background-size: contain;
-            background-position: bottom;
-            transition: transform 0.1s;
-        }
-        /* 敌方位置 */
-        #enemy-sprite {
-            top: 30px;
-            right: 40px;
-            background-image: url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iii/firered-leafgreen/7.png'); /* 杰尼龟正面 */
-        }
-        /* 我方位置 */
-        #player-sprite {
-            bottom: 85px;
-            left: 30px;
-            background-image: url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iii/firered-leafgreen/back/4.png'); /* 小火龙背面 */
-            width: 160px; height: 160px; /* 背面图通常大一点 */
-        }
-
-        /* --- 受伤动画 --- */
-        @keyframes shake {
-            0% { transform: translate(0, 0); }
-            20% { transform: translate(-4px, 0); filter: brightness(1.5); }
-            40% { transform: translate(4px, 0); }
-            60% { transform: translate(-4px, 0); filter: brightness(1.5); }
-            80% { transform: translate(4px, 0); }
-            100% { transform: translate(0, 0); }
-        }
-        .damaged {
-            animation: shake 0.4s ease-in-out;
-        }
-
-        /* --- UI 信息框 (GBA风格边框) --- */
-        .status-box {
-            position: absolute;
-            background: var(--ui-bg);
-            border: 3px solid var(--ui-border);
-            border-radius: 4px;
-            padding: 8px 12px;
-            width: 180px;
-            box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
-        }
-        .status-box h3 { margin: 0 0 5px 0; font-size: 12px; }
-        .hp-container {
-            height: 10px;
-            background: #555;
-            border: 2px solid #222;
-            border-radius: 4px;
-            overflow: hidden;
-            position: relative;
-        }
-        .hp-bar-fill {
-            height: 100%;
+        /* 屏幕内容区域 */
+        #screen {
             width: 100%;
-            background: var(--hp-green);
-            transition: width 0.5s ease-out, background-color 0.3s;
+            height: 100%;
+            position: relative;
+            background: #000;
+            overflow: hidden;
         }
-        .hp-text { font-size: 10px; text-align: right; margin-top: 2px; }
 
+        /* --- 1. 地图场景 (Map View) --- */
+        #map-view {
+            width: 100%;
+            height: 100%;
+            /* 使用一张平铺的草地素材作为背景 */
+            background-image: url('https://i.imgur.com/8Qh1e8A.png'); 
+            background-size: 64px; /* 调整背景大小 */
+            position: absolute;
+            display: block; /* 默认显示 */
+        }
+
+        /* 玩家角色 */
+        #player-char {
+            width: var(--tile-size);
+            height: var(--tile-size);
+            position: absolute;
+            background-image: url('https://i.imgur.com/Myf30gE.png'); /* 红帽子角色行走图 */
+            background-size: 128px 128px; /* 根据精灵图大小调整 */
+            background-position: 0 0; /* 默认朝下 */
+            top: 0;
+            left: 0;
+            transition: top 0.15s linear, left 0.15s linear; /* 平滑移动 */
+            z-index: 10;
+        }
+
+        /* 装饰物：草丛 */
+        .tall-grass {
+            width: 32px; height: 32px;
+            background: rgba(0,100,0,0.3);
+            position: absolute;
+            border-radius: 4px;
+        }
+
+        /* 提示文字 */
+        .tutorial-text {
+            position: absolute;
+            top: 10px; left: 10px;
+            color: white;
+            font-size: 10px;
+            text-shadow: 1px 1px 0 #000;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+            z-index: 20;
+        }
+
+        /* --- 2. 战斗场景 (Battle View) --- */
+        #battle-view {
+            width: 100%;
+            height: 100%;
+            background: url('https://i.imgur.com/9Qz6v3o.png') no-repeat center;
+            background-size: cover;
+            position: absolute;
+            display: none; /* 默认隐藏 */
+            z-index: 100;
+        }
+
+        /* 战斗转场动画 */
+        @keyframes flash-anim {
+            0% { opacity: 0; background: white; }
+            20% { opacity: 1; }
+            40% { opacity: 0; background: black; }
+            60% { opacity: 1; }
+            80% { opacity: 0; }
+            100% { opacity: 1; background: black; } /* 最终全黑，然后切场景 */
+        }
+        #transition-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            display: none;
+        }
+
+        /* (复用之前的战斗UI样式) */
+        .sprite { position: absolute; width: 120px; height: 120px; background-size: contain; background-repeat: no-repeat; bottom: 0; }
+        #enemy-sprite { top: 30px; right: 40px; background-image: url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iii/firered-leafgreen/7.png'); width: 120px; height: 120px; }
+        #player-battler { bottom: 85px; left: 30px; background-image: url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iii/firered-leafgreen/back/4.png'); width: 140px; height: 140px; }
+        
+        .status-box { position: absolute; background: #f8f8f8; border: 3px solid #404040; border-radius: 4px; padding: 5px 10px; width: 160px; box-shadow: 2px 2px 0 rgba(0,0,0,0.2); }
+        .hp-bar { height: 8px; background: #555; border: 1px solid #222; margin-top: 5px; border-radius: 2px; overflow: hidden; }
+        .hp-fill { height: 100%; background: #50c878; width: 100%; transition: width 0.5s; }
         #enemy-status { top: 20px; left: 20px; }
         #player-status { bottom: 100px; right: 20px; }
 
-        /* --- 底部 UI 区域 --- */
-        #bottom-ui {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            height: 90px;
-            background: var(--ui-bg);
-            border-top: 4px solid var(--ui-border);
-            display: flex;
-        }
-
-        /* 对话框 */
         #dialog-box {
-            flex: 2;
-            padding: 15px;
-            font-size: 12px;
-            line-height: 1.6;
-            border-right: 3px solid var(--ui-border);
-            user-select: none;
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 80px;
+            background: #fff; border-top: 4px solid #333;
+            box-sizing: border-box; padding: 15px; font-size: 12px; line-height: 1.5;
         }
-
-        /* 战斗菜单 */
-        #action-menu {
-            flex: 1;
-            display: none; /* 默认隐藏 */
-            flex-direction: column;
-            padding: 5px;
-            background: #e8e8e8;
+        #menu-box {
+            position: absolute; bottom: 0; right: 0; width: 140px; height: 80px;
+            background: #fff; border-top: 4px solid #333; border-left: 4px solid #333;
+            display: none; flex-direction: column;
         }
-        .menu-btn {
-            flex: 1;
-            margin: 2px;
-            background: #fff;
-            border: 3px solid var(--ui-border);
-            font-family: inherit;
-            font-size: 12px;
-            cursor: pointer;
-            text-align: left;
-            padding-left: 10px;
-        }
-        .menu-btn:hover { background: #f0f0d0; border-color: #d04040; }
+        .menu-btn { cursor: pointer; padding: 8px; font-size: 10px; font-family: inherit; border: none; background: none; text-align: left; }
+        .menu-btn:hover { background: #eee; color: #e03030; }
+        .menu-btn::before { content: "> "; opacity: 0; }
+        .menu-btn:hover::before { opacity: 1; }
 
     </style>
 </head>
 <body>
 
-<div id="gba-screen">
-    <div id="enemy-status" class="status-box">
-        <h3>SQUIRTLE (Lv.5)</h3>
-        <div class="hp-container">
-            <div id="enemy-hp-fill" class="hp-bar-fill"></div>
+<div id="game-boy">
+    <div id="screen">
+        <div id="map-view">
+            <div class="tutorial-text">Use ARROW KEYS to move<br>Walk in grass to find Pokémon!</div>
+            <div class="tall-grass" style="top: 96px; left: 96px;"></div>
+            <div class="tall-grass" style="top: 96px; left: 128px;"></div>
+            <div class="tall-grass" style="top: 128px; left: 96px;"></div>
+            <div class="tall-grass" style="top: 128px; left: 128px;"></div>
+            <div class="tall-grass" style="top: 64px; left: 200px;"></div>
+            
+            <div id="player-char"></div>
         </div>
-    </div>
-    <div id="enemy-sprite" class="sprite"></div>
 
-    <div id="player-status" class="status-box">
-        <h3>CHARMANDER (Lv.5)</h3>
-        <div class="hp-container">
-            <div id="player-hp-fill" class="hp-bar-fill"></div>
-        </div>
-        <div class="hp-text"><span id="p-cur-hp">20</span> / <span id="p-max-hp">20</span></div>
-    </div>
-    <div id="player-sprite" class="sprite"></div>
+        <div id="transition-layer"></div>
 
-    <div id="bottom-ui">
-        <div id="dialog-box">A wild SQUIRTLE appeared!</div>
-        <div id="action-menu">
-            <button class="menu-btn" onclick="playerAttack('TACKLE')">FIGHT: TACKLE</button>
-            <button class="menu-btn" onclick="playerAttack('EMBER')">FIGHT: EMBER</button>
+        <div id="battle-view">
+            <div id="enemy-status" class="status-box">
+                <div>SQUIRTLE Lv.5</div>
+                <div class="hp-bar"><div id="e-hp" class="hp-fill"></div></div>
+            </div>
+            <div id="enemy-sprite" class="sprite"></div>
+
+            <div id="player-status" class="status-box">
+                <div>CHARMANDER Lv.5</div>
+                <div class="hp-bar"><div id="p-hp" class="hp-fill"></div></div>
+            </div>
+            <div id="player-battler" class="sprite"></div>
+
+            <div id="dialog-box">A wild Pokémon appeared!</div>
+            <div id="menu-box">
+                <button class="menu-btn" onclick="battleAction('scratch')">FIGHT: SCRATCH</button>
+                <button class="menu-btn" onclick="battleAction('ember')">FIGHT: EMBER</button>
+                <button class="menu-btn" onclick="runAway()">RUN</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 游戏数据 ---
-    const player = {
-        name: "CHARMANDER",
-        maxHp: 25,
-        currentHp: 25,
-        spriteId: 'player-sprite'
+    /* --- 全局状态 --- */
+    const GAME_STATE = {
+        MAP: 'MAP',
+        TRANSITION: 'TRANSITION',
+        BATTLE: 'BATTLE'
+    };
+    let currentState = GAME_STATE.MAP;
+
+    /* --- 地图逻辑 --- */
+    const playerPos = { x: 3, y: 3 }; // 格子坐标 (3,3)
+    const TILE_SIZE = 32;
+    const playerEl = document.getElementById('player-char');
+    
+    // 初始化位置
+    updatePlayerPos();
+
+    // 键盘监听
+    window.addEventListener('keydown', (e) => {
+        if (currentState !== GAME_STATE.MAP) return;
+
+        let moved = false;
+        switch(e.key) {
+            case 'ArrowUp': playerPos.y--; playerEl.style.backgroundPosition = "-32px 32px"; moved = true; break; // 简易朝向处理
+            case 'ArrowDown': playerPos.y++; playerEl.style.backgroundPosition = "0 0"; moved = true; break;
+            case 'ArrowLeft': playerPos.x--; playerEl.style.transform = "scaleX(1)"; moved = true; break;
+            case 'ArrowRight': playerPos.x++; playerEl.style.transform = "scaleX(-1)"; moved = true; break;
+        }
+
+        if (moved) {
+            // 边界检查 (0 - 14, 0 - 9)
+            if (playerPos.x < 0) playerPos.x = 0;
+            if (playerPos.x > 14) playerPos.x = 14;
+            if (playerPos.y < 0) playerPos.y = 0;
+            if (playerPos.y > 9) playerPos.y = 9;
+
+            updatePlayerPos();
+            checkEncounter();
+        }
+    });
+
+    function updatePlayerPos() {
+        playerEl.style.left = (playerPos.x * TILE_SIZE) + 'px';
+        playerEl.style.top = (playerPos.y * TILE_SIZE) + 'px';
+    }
+
+    // 遇敌检测
+    function checkEncounter() {
+        // 15% 几率触发战斗
+        if (Math.random() < 0.15) {
+            startTransition();
+        }
+    }
+
+    /* --- 转场逻辑 --- */
+    function startTransition() {
+        currentState = GAME_STATE.TRANSITION;
+        const layer = document.getElementById('transition-layer');
+        layer.style.display = 'block';
+        layer.style.animation = 'flash-anim 1.5s forwards';
+
+        // 动画结束后切换到战斗界面
+        setTimeout(() => {
+            document.getElementById('map-view').style.display = 'none';
+            document.getElementById('battle-view').style.display = 'block';
+            layer.style.display = 'none';
+            initBattle();
+        }, 1200);
+    }
+
+    /* --- 战斗逻辑 --- */
+    let pHP = 100;
+    let eHP = 100;
+    const dialog = document.getElementById('dialog-box');
+    const menu = document.getElementById('menu-box');
+
+    function initBattle() {
+        currentState = GAME_STATE.BATTLE;
+        pHP = 100; eHP = 100;
+        updateBattleUI();
+        dialog.innerText = "A wild SQUIRTLE appeared!";
+        menu.style.display = 'none';
+        
+        setTimeout(() => {
+            dialog.innerText = "What will CHARMANDER do?";
+            menu.style.display = 'flex';
+        }, 1500);
+    }
+
+    function updateBattleUI() {
+        document.getElementById('p-hp').style.width = pHP + '%';
+        document.getElementById('e-hp').style.width = eHP + '%';
+        
+        // 血条变色
+        document.getElementById('p-hp').style.backgroundColor = pHP < 30 ? '#e03030' : '#50c878';
+    }
+
+    window.battleAction = function(move) {
+        menu.style.display = 'none';
+        let dmg = 0;
+        let moveName = "";
+
+        if (move === 'scratch') { dmg = 15; moveName = "SCRATCH"; }
+        if (move === 'ember') { dmg = 25; moveName = "EMBER"; }
+
+        // 玩家攻击
+        dialog.innerText = `CHARMANDER used ${moveName}!`;
+        setTimeout(() => {
+            eHP -= dmg;
+            if (eHP < 0) eHP = 0;
+            updateBattleUI();
+            
+            // 敌人闪烁
+            const eSprite = document.getElementById('enemy-sprite');
+            eSprite.style.opacity = 0.5;
+            setTimeout(()=>eSprite.style.opacity = 1, 100);
+
+            if (eHP === 0) {
+                setTimeout(winBattle, 1000);
+            } else {
+                setTimeout(enemyTurn, 1000);
+            }
+        }, 800);
     };
 
-    const enemy = {
-        name: "SQUIRTLE",
-        maxHp: 25,
-        currentHp: 25,
-        spriteId: 'enemy-sprite'
+    function enemyTurn() {
+        dialog.innerText = "Enemy SQUIRTLE used BUBBLE!";
+        setTimeout(() => {
+            pHP -= 15;
+            if (pHP < 0) pHP = 0;
+            updateBattleUI();
+
+            // 玩家闪烁
+            const pSprite = document.getElementById('player-battler');
+            pSprite.style.opacity = 0.5;
+            setTimeout(()=>pSprite.style.opacity = 1, 100);
+
+            if (pHP === 0) {
+                dialog.innerText = "You fainted...";
+                setTimeout(backToMap, 2000);
+            } else {
+                dialog.innerText = "What will CHARMANDER do?";
+                menu.style.display = 'flex';
+            }
+        }, 1000);
+    }
+
+    function winBattle() {
+        dialog.innerText = "Wild SQUIRTLE fainted! You won!";
+        setTimeout(backToMap, 2000);
+    }
+
+    window.runAway = function() {
+        dialog.innerText = "Got away safely!";
+        setTimeout(backToMap, 1000);
     };
 
-    let isPlayerTurn = true;
-    let isGameOver = false;
-
-    // --- DOM 元素 ---
-    const dialogBox = document.getElementById('dialog-box');
-    const actionMenu = document.getElementById('action-menu');
-
-    // --- 工具函数：延时 ---
-    const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-    // --- 核心：更新血条 UI ---
-    function updateHealthUI() {
-        // 更新玩家
-        const pPercent = (player.currentHp / player.maxHp) * 100;
-        const pFill = document.getElementById('player-hp-fill');
-        pFill.style.width = pPercent + '%';
-        document.getElementById('p-cur-hp').innerText = player.currentHp;
-        document.getElementById('p-max-hp').innerText = player.maxHp;
-        updateHPColor(pFill, pPercent);
-
-        // 更新敌人
-        const ePercent = (enemy.currentHp / enemy.maxHp) * 100;
-        const eFill = document.getElementById('enemy-hp-fill');
-        eFill.style.width = ePercent + '%';
-        updateHPColor(eFill, ePercent);
+    function backToMap() {
+        document.getElementById('battle-view').style.display = 'none';
+        document.getElementById('map-view').style.display = 'block';
+        currentState = GAME_STATE.MAP;
+        // 稍微移动一下防止立刻再次遇敌
+        updatePlayerPos(); 
     }
-
-    // --- 工具：血条变色 ---
-    function updateHPColor(element, percent) {
-        if (percent > 50) element.style.backgroundColor = 'var(--hp-green)';
-        else if (percent > 20) element.style.backgroundColor = 'var(--hp-yellow)';
-        else element.style.backgroundColor = 'var(--hp-red)';
-    }
-
-    // --- 核心：造成伤害与动画 ---
-    async function dealDamage(target, damage, moveName) {
-        target.currentHp = Math.max(0, target.currentHp - damage);
-        
-        dialogBox.innerText = `Used ${moveName}!`;
-        await wait(500);
-
-        // 播放受伤震动动画
-        const sprite = document.getElementById(target.spriteId);
-        sprite.classList.add('damaged');
-        // 播放音效 (可选，浏览器可能阻止自动播放)
-        // new Audio('https://fi.zophar.net/soundfiles/gameboy-advance-gba/pokemon-fire-red/111%20-%20Damage.mp3').play().catch(()=>{});
-
-        updateHealthUI();
-        await wait(600); // 等待动画和血条下降
-        sprite.classList.remove('damaged');
-        
-        dialogBox.innerText = `It was effective!`;
-        await wait(1000);
-    }
-
-
-    // --- 游戏流程控制 ---
-
-    // 1. 游戏开始
-    async function startGame() {
-        updateHealthUI();
-        await wait(1500);
-        dialogBox.innerText = `Go! ${player.name}!`;
-        await wait(1500);
-        showMenu();
-    }
-
-    // 2. 显示菜单，等待玩家输入
-    function showMenu() {
-        if (isGameOver) return;
-        dialogBox.innerText = `What will ${player.name} do?`;
-        dialogBox.style.display = 'none';
-        actionMenu.style.display = 'flex';
-    }
-
-    // 3. 玩家行动
-    async function playerAttack(moveName) {
-        if (!isPlayerTurn || isGameOver) return;
-        
-        actionMenu.style.display = 'none';
-        dialogBox.style.display = 'block';
-        dialogBox.innerText = `${player.name} used ${moveName}!`;
-        await wait(800);
-
-        // 计算简易伤害 ( Ember 稍微强一点 )
-        let damage = moveName === 'EMBER' ? Math.floor(Math.random() * 5) + 6 : Math.floor(Math.random() * 4) + 4;
-
-        await dealDamage(enemy, damage, moveName);
-
-        if (enemy.currentHp <= 0) {
-            endGame(true);
-        } else {
-            isPlayerTurn = false;
-            enemyTurn();
-        }
-    }
-
-    // 4. 敌方行动
-    async function enemyTurn() {
-        if (isGameOver) return;
-        dialogBox.innerText = `Enemy ${enemy.name} is attacking!`;
-        await wait(1500);
-
-        let damage = Math.floor(Math.random() * 5) + 3;
-        await dealDamage(player, damage, "BUBBLE");
-
-        if (player.currentHp <= 0) {
-            endGame(false);
-        } else {
-            isPlayerTurn = true;
-            showMenu();
-        }
-    }
-
-    // 5. 游戏结束
-    function endGame(playerWon) {
-        isGameOver = true;
-        if (playerWon) {
-            dialogBox.innerText = `Enemy ${enemy.name} fainted! You won!`;
-             // 隐藏敌人
-             document.getElementById(enemy.spriteId).style.opacity = 0;
-        } else {
-            dialogBox.innerText = `${player.name} fainted... You whited out.`;
-            // 隐藏自己
-            document.getElementById(player.spriteId).style.opacity = 0;
-        }
-    }
-
-    // 初始化运行
-    startGame();
 
 </script>
 </body>
 </html>
+
