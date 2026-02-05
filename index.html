@@ -1,154 +1,109 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全军之战核心机制演示</title>
-    
+    <title>口袋妖怪网页版 - 极简GBA对战</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            background-color: #f4f4f9;
-        }
-
-        #game-info {
-            background-color: #fff;
-            border: 2px solid #3498db;
-            border-radius: 10px;
-            padding: 20px 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-
-        #unit-display {
-            font-size: 2em;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-top: 10px;
-        }
-
-        .unit-number {
-            color: #e74c3c; /* 红色突出显示单位数量 */
-        }
+        body { background-color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Courier New', Courier, monospace; }
+        #game-container { width: 400px; height: 300px; background: #f8f8f8; border: 4px solid #000; position: relative; overflow: hidden; }
         
-        .action-button {
-            padding: 10px 15px;
-            margin: 5px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background-color 0.3s;
-        }
+        /* 战场布局 */
+        .battle-scene { height: 70%; position: relative; }
+        .monster { width: 80px; height: 80px; position: absolute; border-radius: 50%; }
+        #enemy { background: #3498db; top: 30px; right: 40px; }
+        #player { background: #e74c3c; bottom: 20px; left: 40px; }
 
-        .gate {
-            background-color: #2ecc71; /* 绿色代表倍增门 */
-            color: white;
-        }
+        /* 血条 */
+        .status-box { position: absolute; background: rgba(255,255,255,0.8); border: 2px solid #000; padding: 5px; width: 120px; }
+        #enemy-status { top: 20px; left: 20px; }
+        #player-status { bottom: 60px; right: 20px; }
+        .hp-bar { width: 100%; height: 8px; background: #ccc; margin-top: 5px; }
+        .hp-fill { height: 100%; background: #2ecc71; width: 100%; transition: width 0.3s; }
 
-        .battle {
-            background-color: #e74c3c; /* 红色代表战斗/障碍 */
-            color: white;
-        }
+        /* 对话框 */
+        #message-box { height: 30%; background: #000; color: white; padding: 15px; box-sizing: border-box; font-size: 16px; cursor: pointer; }
         
-        .action-button:hover {
-            opacity: 0.9;
-        }
-
-        #log {
-            width: 80%;
-            max-width: 600px;
-            height: 150px;
-            border: 1px solid #ccc;
-            padding: 10px;
-            overflow-y: scroll;
-            background-color: #ecf0f1;
-            font-size: 0.9em;
-            white-space: pre-wrap;
-        }
+        /* 按钮 */
+        .controls { position: absolute; bottom: 10px; right: 10px; display: none; }
+        button { padding: 5px 15px; cursor: pointer; background: #fff; border: 2px solid #000; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="game-info">
-        <h2>《全军之战》核心逻辑演示</h2>
-        <p>当前玩家单位数量：</p>
-        <div id="unit-display">
-            <span class="unit-number">60</span>
+<div id="game-container">
+    <div class="battle-scene">
+        <div id="enemy-status" class="status-box">
+            <div>水箭龟</div>
+            <div class="hp-bar"><div id="enemy-hp" class="hp-fill"></div></div>
         </div>
-        <p>（点击按钮模拟游戏进程）</p>
+        <div id="enemy" class="monster"></div>
+
+        <div id="player-status" class="status-box">
+            <div>小火龙</div>
+            <div class="hp-bar"><div id="player-hp" class="hp-fill"></div></div>
+        </div>
+        <div id="player" class="monster"></div>
     </div>
 
-    <div>
-        <button class="action-button gate" onclick="passGate(2)">
-            通过门 (x2)
-        </button>
-        <button class="action-button battle" onclick="handleCollision(110)">
-            遭遇障碍 (110)
-        </button>
-        <button class="action-button gate" onclick="passGate(20)">
-            通过门 (x20)
-        </button>
-        <button class="action-button battle" onclick="handleCollision(130)">
-            遭遇终点 (130)
-        </button>
+    <div id="message-box">野生的 水箭龟 出现了！</div>
+    <div class="controls" id="controls">
+        <button onclick="attack()">攻击 (A)</button>
     </div>
+</div>
 
-    <h3>操作日志：</h3>
-    <pre id="log">初始单位: 60</pre>
+<script>
+    let playerHP = 100;
+    let enemyHP = 100;
+    const msgBox = document.getElementById('message-box');
+    const controls = document.getElementById('controls');
 
-    <script>
-        // 初始单位数量
-        let playerUnits = 60; 
-        const unitDisplay = document.querySelector('#unit-display .unit-number');
-        const logArea = document.getElementById('log');
-
-        // 更新单位数量的显示和日志
-        function updateDisplay(message) {
-            unitDisplay.textContent = playerUnits;
-            logArea.innerHTML += `\n> ${message}`;
-            logArea.scrollTop = logArea.scrollHeight; // 滚动到底部
+    // 初始点击进入战斗
+    msgBox.onclick = () => {
+        if (msgBox.innerText.includes("出现")) {
+            msgBox.innerText = "你要做什么？";
+            controls.style.display = 'block';
         }
+    };
 
-        // 模拟通过乘法门
-        function passGate(multiplier) {
-            if (playerUnits <= 0) {
-                updateDisplay("🚨 游戏已结束，无法进行操作！");
-                return;
-            }
-            playerUnits = playerUnits * multiplier;
-            updateDisplay(`🟢 通过 x${multiplier} 门，新单位: ${playerUnits}`);
-        }
+    function updateHP() {
+        document.getElementById('player-hp').style.width = playerHP + '%';
+        document.getElementById('enemy-hp').style.width = enemyHP + '%';
+    }
 
-        // 模拟与敌方/障碍战斗
-        function handleCollision(enemyUnits) {
-            if (playerUnits <= 0) {
-                updateDisplay("🚨 游戏已结束，无法进行操作！");
-                return;
-            }
-
-            const battleMessage = `💥 遭遇障碍 (${enemyUnits}) - 战前单位: ${playerUnits}`;
-            
-            playerUnits -= enemyUnits;
-            
-            if (playerUnits > 0) {
-                updateDisplay(`${battleMessage}\n   🎉 胜利！剩余单位: ${playerUnits}`);
-            } else if (playerUnits === 0) {
-                 updateDisplay(`${battleMessage}\n   ⚠️ 平局！所有单位消耗完毕。`);
-            } else {
-                playerUnits = 0; // 玩家单位被消耗殆尽
-                updateDisplay(`${battleMessage}\n   💀 失败！单位全部阵亡。游戏结束。`);
-            }
-        }
+    function attack() {
+        controls.style.display = 'none';
         
-        // 初始调用
-        updateDisplay("游戏准备就绪。");
-    </script>
+        // 玩家攻击
+        let dmg = Math.floor(Math.random() * 15) + 10;
+        enemyHP -= dmg;
+        if (enemyHP < 0) enemyHP = 0;
+        updateHP();
+        msgBox.innerText = `小火龙使用了 喷射火焰！造成了 ${dmg} 点伤害。`;
+
+        if (enemyHP <= 0) {
+            setTimeout(() => { msgBox.innerText = "敌方倒下了！你赢了！"; }, 1500);
+            return;
+        }
+
+        // 敌人反击
+        setTimeout(() => {
+            let eDmg = Math.floor(Math.random() * 12) + 8;
+            playerHP -= eDmg;
+            if (playerHP < 0) playerHP = 0;
+            updateHP();
+            msgBox.innerText = `水箭龟使用了 水枪！造成了 ${eDmg} 点伤害。`;
+            
+            if (playerHP <= 0) {
+                setTimeout(() => { msgBox.innerText = "你眼前陷入了一片漆黑..."; }, 1500);
+            } else {
+                setTimeout(() => { 
+                    msgBox.innerText = "你要做什么？"; 
+                    controls.style.display = 'block';
+                }, 1500);
+            }
+        }, 1500);
+    }
+</script>
 
 </body>
 </html>
