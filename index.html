@@ -8,12 +8,18 @@
 </head>
 <body>
     <div id="game-container">
-        <canvas id="gameCanvas" width="480" height="320"></canvas>
-        <div class="ui-overlay">
-            <p>使用方向键移动 (↑ ↓ ← →)</p>
-            <p>按 Z 键交互 (模拟 A 键)</p>
-        </div>
+    <canvas id="gameCanvas" width="480" height="320"></canvas>
+    
+    <div id="dialogue-box" class="hidden">
+        <div id="dialogue-text"></div>
+        <div id="dialogue-arrow">▼</div>
     </div>
+
+    <div class="ui-overlay">
+        <p>方向键移动 | <strong>按 Z 键交互</strong></p>
+    </div>
+</div>
+
     <script src="script.js"></script>
 </body>
 </html>
