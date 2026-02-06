@@ -99,6 +99,66 @@ const camera = {
         this.y = Math.max(0, Math.min(this.y, MAP_ROWS * TILE_SIZE - SCREEN_HEIGHT));
     }
 };
+// --- 3.1 移动端触控逻辑 (新增) ---
+
+// 辅助函数：模拟按键触发
+function simulateKey(keyName, isPressed) {
+    // 如果按键状态没有改变，就不执行（防止重复触发）
+    if (keys[keyName] === isPressed) return;
+
+    if (keyName === 'z') {
+        // 特殊处理 Z 键 (A按钮) 的交互逻辑
+        if (isPressed && !keys.zPressed) {
+            keys.zPressed = true;
+            handleInteraction(); // 触发对话
+        }
+        if (!isPressed) {
+            keys.zPressed = false;
+        }
+        keys.z = isPressed;
+    } else {
+        // 方向键逻辑
+        keys[keyName] = isPressed;
+    }
+}
+
+// 绑定触摸事件
+const touchMap = [
+    { id: 'btn-up', key: 'ArrowUp' },
+    { id: 'btn-down', key: 'ArrowDown' },
+    { id: 'btn-left', key: 'ArrowLeft' },
+    { id: 'btn-right', key: 'ArrowRight' },
+    { id: 'btn-a', key: 'z' }, // A 键对应键盘 Z
+    { id: 'btn-b', key: 'x' }  // B 键对应键盘 X (暂时无功能)
+];
+
+touchMap.forEach(map => {
+    const btn = document.getElementById(map.id);
+    if (!btn) return;
+
+    // 触摸开始
+    btn.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // 防止双击缩放
+        simulateKey(map.key, true);
+        btn.classList.add('active'); // 可用于CSS按压效果
+    }, { passive: false });
+
+    // 触摸结束
+    btn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        simulateKey(map.key, false);
+        btn.classList.remove('active');
+    });
+    
+    // 鼠标支持（方便在电脑上用鼠标点击测试）
+    btn.addEventListener('mousedown', (e) => {
+        simulateKey(map.key, true);
+    });
+    btn.addEventListener('mouseup', (e) => {
+        simulateKey(map.key, false);
+    });
+});
+
 
 // --- 4. 交互与对话系统 ---
 
