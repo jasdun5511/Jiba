@@ -70,3 +70,90 @@ canvas {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(4px); }
 }
+/* --- 第四阶段：移动端控件 --- */
+
+#mobile-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    width: 100%;
+    height: 160px;
+    pointer-events: none; /* 让点击穿透空白区域 */
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 200;
+}
+
+/* 左侧十字键容器 */
+#d-pad {
+    width: 120px;
+    height: 120px;
+    pointer-events: auto; /* 恢复按钮点击 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.d-row {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.d-btn {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    font-size: 20px;
+    color: white;
+    touch-action: none; /* 禁止长按弹出菜单 */
+}
+
+.d-btn:active {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+/* 右侧动作键 */
+#action-buttons {
+    width: 140px;
+    height: 120px;
+    pointer-events: auto;
+    position: relative;
+}
+
+.action-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255, 0, 0, 0.4); /* 红色按钮 */
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    position: absolute;
+    user-select: none;
+    touch-action: none;
+}
+
+.action-btn:active {
+    background: rgba(255, 0, 0, 0.7);
+}
+
+/* 模拟 GBA 布局：A键在右上，B键在左下 */
+#btn-a { bottom: 10px; right: 0; }
+#btn-b { bottom: 0; right: 60px; }
+
+/* 响应式调整：如果是大屏幕（电脑），可以隐藏这些按钮，也可以保留用于测试 */
+@media (min-width: 800px) {
+    /* #mobile-controls { display: none; }  <-- 如果你想在电脑上隐藏就取消注释 */
+}
